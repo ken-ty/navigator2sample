@@ -6,12 +6,11 @@ part of 'main.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$pageNameHash() => r'cbb97ebf33432ae19c734663d8ccfe7ad44a7e50';
+String _$pageNameHash() => r'ea395127558014df976cdafae37f43dad34db217';
 
 /// See also [PageName].
 @ProviderFor(PageName)
-final pageNameProvider =
-    AutoDisposeNotifierProvider<PageName, Object?>.internal(
+final pageNameProvider = AutoDisposeNotifierProvider<PageName, Pages?>.internal(
   PageName.new,
   name: r'pageNameProvider',
   debugGetCreateSourceHash:
@@ -20,6 +19,6 @@ final pageNameProvider =
   allTransitiveDependencies: null,
 );
 
-typedef _$PageName = AutoDisposeNotifier<Object?>;
+typedef _$PageName = AutoDisposeNotifier<Pages?>;
 // ignore_for_file: type=lint
 // ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member
