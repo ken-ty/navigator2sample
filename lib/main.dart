@@ -1,55 +1,42 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
+
+part 'main.g.dart';
 
 void main() {
-  runApp(const SampleApp());
+  runApp(const ProviderScope(child: SampleApp()));
 }
 
-class SampleApp extends StatefulWidget {
+class SampleApp extends ConsumerWidget {
   const SampleApp({super.key});
 
   @override
-  State<SampleApp> createState() => _SampleAppState();
-}
+  Widget build(BuildContext context, WidgetRef ref) {
+    final page = ref.watch(pageNameProvider);
+    final pageNotifier = ref.watch(pageNameProvider.notifier);
 
-class _SampleAppState extends State<SampleApp> {
-  // 遷移したい画面の名前
-  PageName? routeName = PageName.page1;
-  @override
-  Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Sample App',
       home: Navigator(
           pages: [
-            const MaterialPage(
-              child: Scaffold(body: Center(child: Text("デフォルト"))),
+            MaterialPage(
+              child: Page1(onPressed: () => pageNotifier.state = Pages.page2),
             ),
-            if (routeName == PageName.page1)
+            if (page == Pages.page2)
               MaterialPage(
-                child: Page1(
-                  onPressed: () => updateRouteName(PageName.page2),
-                ),
-              )
-            else if (routeName == PageName.page2)
-              const MaterialPage(child: Page2())
-            else if (routeName == PageName.page3)
-              const MaterialPage(child: Page3())
+                child: Page2(onPressed: () => pageNotifier.state = Pages.page3),
+              ),
+            if (page == Pages.page3) const MaterialPage(child: Page3())
           ],
           onPopPage: (route, result) {
             if (!route.didPop(result)) {
               return false;
             }
-            setState(() {
-              routeName = null;
-            });
+            pageNotifier.state = null;
             return true;
           }),
     );
-  }
-
-  void updateRouteName(PageName pageName) {
-    setState(() {
-      routeName = pageName;
-    });
   }
 }
 
@@ -77,13 +64,24 @@ class Page1 extends StatelessWidget {
 }
 
 class Page2 extends StatelessWidget {
-  const Page2({Key? key}) : super(key: key);
+  const Page2({Key? key, required this.onPressed}) : super(key: key);
+
+  final void Function() onPressed;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(),
-      body: const Center(child: Text('Page 2')),
+      body: Center(
+          child: Column(
+        children: [
+          const Text('Page 2'),
+          ElevatedButton(
+            onPressed: onPressed,
+            child: const Text('Page 3へ'),
+          ),
+        ],
+      )),
     );
   }
 }
@@ -100,8 +98,16 @@ class Page3 extends StatelessWidget {
   }
 }
 
-enum PageName {
+enum Pages {
   page1,
   page2,
   page3,
+}
+
+@riverpod
+class PageName extends _$PageName {
+  @override
+  build() {
+    return null;
+  }
 }
