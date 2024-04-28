@@ -1,86 +1,267 @@
-// Copyright 2013 The Flutter Authors. All rights reserved.
-// Use of this source code is governed by a BSD-style license that can be
-// found in the LICENSE file.
+/// updated null safety code
+/// https://medium.com/flutter/learning-flutters-new-navigation-and-routing-system-7c9068155ade
 
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-/// This sample app shows an app with two screens.
-///
-/// The first route '/' is mapped to [HomeScreen], and the second route
-/// '/details' is mapped to [DetailsScreen].
-///
-/// The buttons use context.go() to navigate to each destination. On mobile
-/// devices, each destination is deep-linkable and on the web, can be navigated
-/// to using the address bar.
-void main() => runApp(const MyApp());
+void main() {
+  runApp(const ProviderScope(child: BooksApp()));
+}
 
-/// The route configuration.
-final GoRouter _router = GoRouter(
-  routes: <RouteBase>[
-    GoRoute(
-      path: '/',
-      builder: (BuildContext context, GoRouterState state) {
-        return const HomeScreen();
-      },
-      routes: <RouteBase>[
-        GoRoute(
-          path: 'details',
-          builder: (BuildContext context, GoRouterState state) {
-            return const DetailsScreen();
-          },
-        ),
-      ],
-    ),
-  ],
-);
+class Book {
+  final String title;
+  final String author;
 
-/// The main app.
-class MyApp extends StatelessWidget {
-  /// Constructs a [MyApp]
-  const MyApp({super.key});
+  Book(this.title, this.author);
+}
+
+class BooksApp extends StatefulWidget {
+  const BooksApp({super.key});
+
+  @override
+  State<StatefulWidget> createState() => _BooksAppState();
+}
+
+class _BooksAppState extends State<BooksApp> {
+  final _routerDelegate = BookRouterDelegate();
+  final _routeInformationParser = BookRouteInformationParser();
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp.router(
-      routerConfig: _router,
+      title: 'Books App',
+      routerDelegate: _routerDelegate,
+      routeInformationParser: _routeInformationParser,
     );
   }
 }
 
-/// The home screen
-class HomeScreen extends StatelessWidget {
-  /// Constructs a [HomeScreen]
-  const HomeScreen({super.key});
+class BookRouteInformationParser extends RouteInformationParser<BookRoutePath> {
+  @override
+  Future<BookRoutePath> parseRouteInformation(
+      RouteInformation routeInformation) async {
+    final uri = routeInformation.uri;
+    // Handle '/'
+    if (uri.pathSegments.isEmpty) {
+      return BookRoutePath.home();
+    }
+
+    // Handle '/book/:id'
+    if (uri.pathSegments.length == 2) {
+      if (uri.pathSegments[0] != 'book') return BookRoutePath.unknown();
+      var remaining = uri.pathSegments[1];
+      var id = int.tryParse(remaining);
+      if (id == null) return BookRoutePath.unknown();
+      return BookRoutePath.details(id);
+    }
+
+    // Handle unknown routes
+    return BookRoutePath.unknown();
+  }
+
+  @override
+  RouteInformation? restoreRouteInformation(BookRoutePath configuration) {
+    if (configuration.isUnknown ?? true) {
+      return RouteInformation(uri: Uri.parse('/404'));
+    }
+    if (configuration.isHomePage) {
+      return RouteInformation(uri: Uri.parse('/'));
+    }
+    if (configuration.isDetailsPage) {
+      return RouteInformation(uri: Uri.parse('/book/${configuration.id}'));
+    }
+    return null;
+  }
+}
+
+class BookRouterDelegate extends RouterDelegate<BookRoutePath>
+    with ChangeNotifier, PopNavigatorRouterDelegateMixin<BookRoutePath> {
+  @override
+  final GlobalKey<NavigatorState> navigatorKey;
+
+  Book? _selectedBook;
+  bool show404 = false;
+
+  List<Book> books = [
+    Book('Left Hand of Darkness', 'Ursula K. Le Guin'),
+    Book('Too Like the Lightning', 'Ada Palmer'),
+    Book('Kindred', 'Octavia E. Butler'),
+  ];
+
+  BookRouterDelegate() : navigatorKey = GlobalKey<NavigatorState>();
+
+  @override
+  BookRoutePath get currentConfiguration {
+    if (show404) {
+      return BookRoutePath.unknown();
+    }
+    return _selectedBook == null
+        ? BookRoutePath.home()
+        : BookRoutePath.details(books.indexOf(_selectedBook!));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Navigator(
+      key: navigatorKey,
+      pages: [
+        MaterialPage(
+          key: const ValueKey('BooksListPage'),
+          child: BooksListScreen(
+            books: books,
+            onTapped: _handleBookTapped,
+          ),
+        ),
+        if (show404)
+          const MaterialPage(
+              key: ValueKey('UnknownPage'), child: UnknownScreen()),
+        if (_selectedBook != null) BookDetailsPage(book: _selectedBook!),
+      ],
+      onPopPage: (route, result) {
+        if (!route.didPop(result)) {
+          return false;
+        }
+
+        // Update the list of pages by setting _selectedBook to null
+        _selectedBook = null;
+        show404 = false;
+        notifyListeners();
+
+        return true;
+      },
+    );
+  }
+
+  @override
+  Future<void> setNewRoutePath(BookRoutePath configuration) async {
+    if (configuration.isUnknown ?? true) {
+      _selectedBook = null;
+      show404 = true;
+      return;
+    }
+
+    if (configuration.isDetailsPage) {
+      if (configuration.id! < 0 || configuration.id! > books.length - 1) {
+        show404 = true;
+        return;
+      }
+
+      _selectedBook = books[configuration.id!];
+    } else {
+      _selectedBook = null;
+    }
+
+    show404 = false;
+  }
+
+  void _handleBookTapped(Book book) {
+    _selectedBook = book;
+    notifyListeners();
+  }
+}
+
+class BookDetailsPage extends Page {
+  final Book book;
+
+  BookDetailsPage({
+    required this.book,
+  }) : super(key: ValueKey(book));
+
+  @override
+  Route createRoute(BuildContext context) {
+    return MaterialPageRoute(
+      settings: this,
+      builder: (BuildContext context) {
+        return BookDetailsScreen(book: book);
+      },
+    );
+  }
+}
+
+class BookRoutePath {
+  final int? id;
+  final bool? isUnknown;
+
+  BookRoutePath.home()
+      : id = null,
+        isUnknown = false;
+
+  BookRoutePath.details(this.id) : isUnknown = false;
+
+  BookRoutePath.unknown()
+      : id = null,
+        isUnknown = true;
+
+  bool get isHomePage => id == null;
+
+  bool get isDetailsPage => id != null;
+}
+
+class BooksListScreen extends StatelessWidget {
+  final List<Book> books;
+  final ValueChanged<Book> onTapped;
+
+  const BooksListScreen({
+    super.key,
+    required this.books,
+    required this.onTapped,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Home Screen')),
-      body: Center(
-        child: ElevatedButton(
-          onPressed: () => context.go('/details'),
-          child: const Text('Go to the Details screen'),
+      appBar: AppBar(),
+      body: ListView(
+        children: [
+          for (var book in books)
+            ListTile(
+              title: Text(book.title),
+              subtitle: Text(book.author),
+              onTap: () => onTapped(book),
+            )
+        ],
+      ),
+    );
+  }
+}
+
+class BookDetailsScreen extends StatelessWidget {
+  final Book book;
+
+  const BookDetailsScreen({
+    super.key,
+    required this.book,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(),
+      body: Padding(
+        padding: const EdgeInsets.all(8.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ...[
+              Text(book.title, style: Theme.of(context).textTheme.titleLarge),
+              Text(book.author, style: Theme.of(context).textTheme.titleMedium),
+            ],
+          ],
         ),
       ),
     );
   }
 }
 
-/// The details screen
-class DetailsScreen extends StatelessWidget {
-  /// Constructs a [DetailsScreen]
-  const DetailsScreen({super.key});
+class UnknownScreen extends StatelessWidget {
+  const UnknownScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Details Screen')),
-      body: Center(
-        child: ElevatedButton(
-          onPressed: () => context.go('/'),
-          child: const Text('Go back to the Home screen'),
-        ),
+      appBar: AppBar(),
+      body: const Center(
+        child: Text('404!'),
       ),
     );
   }
