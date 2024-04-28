@@ -1,160 +1,87 @@
-import 'dart:async';
+// Copyright 2013 The Flutter Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
 
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:go_router/go_router.dart';
 
-part 'main.g.dart';
+/// This sample app shows an app with two screens.
+///
+/// The first route '/' is mapped to [HomeScreen], and the second route
+/// '/details' is mapped to [DetailsScreen].
+///
+/// The buttons use context.go() to navigate to each destination. On mobile
+/// devices, each destination is deep-linkable and on the web, can be navigated
+/// to using the address bar.
+void main() => runApp(const MyApp());
 
-void main() {
-  runApp(const ProviderScope(child: _EagerInitialization(child: SampleApp())));
-}
+/// The route configuration.
+final GoRouter _router = GoRouter(
+  routes: <RouteBase>[
+    GoRoute(
+      path: '/',
+      builder: (BuildContext context, GoRouterState state) {
+        return const HomeScreen();
+      },
+      routes: <RouteBase>[
+        GoRoute(
+          path: 'details',
+          builder: (BuildContext context, GoRouterState state) {
+            return const DetailsScreen();
+          },
+        ),
+      ],
+    ),
+  ],
+);
 
-class _EagerInitialization extends ConsumerWidget {
-  const _EagerInitialization({required this.child});
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    // タイマー開始
-    Timer.periodic(const Duration(seconds: 2), (timer) {
-      final page = ref.read(pageNameProvider);
-      switch (page) {
-        case null:
-          ref.read(pageNameProvider.notifier).state = Pages.page1;
-          print("null -> page1");
-          break;
-        case Pages.page1:
-          ref.read(pageNameProvider.notifier).state = Pages.page2;
-          print("page1 -> page2");
-          break;
-        case Pages.page2:
-          ref.read(pageNameProvider.notifier).state = Pages.page3;
-          print("page2 -> page3");
-          break;
-        case Pages.page3:
-          ref.read(pageNameProvider.notifier).state = null;
-          print("page3 -> null");
-          break;
-      }
-    });
-
-    return child;
-  }
-}
-
-class SampleApp extends ConsumerWidget {
-  const SampleApp({super.key});
+/// The main app.
+class MyApp extends StatelessWidget {
+  /// Constructs a [MyApp]
+  const MyApp({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final page = ref.watch(pageNameProvider);
-    final pageNotifier = ref.watch(pageNameProvider.notifier);
-
-    return MaterialApp(
-      title: 'Sample App',
-      home: Navigator(
-          pages: [
-            MaterialPage(
-              child: Scaffold(
-                  appBar: AppBar(), body: const Center(child: Text('Home'))),
-            ),
-            if (page == Pages.page1 ||
-                page == Pages.page2 ||
-                page == Pages.page3)
-              MaterialPage(
-                child: Page1(onPressed: () => pageNotifier.state = Pages.page2),
-              ),
-            if (page == Pages.page2 || page == Pages.page3)
-              MaterialPage(
-                child: Page2(onPressed: () => pageNotifier.state = Pages.page3),
-              ),
-            if (page == Pages.page3) const MaterialPage(child: Page3())
-          ],
-          onPopPage: (route, result) {
-            if (!route.didPop(result)) {
-              return false;
-            }
-            ref.read(pageNameProvider.notifier).state = switch (page) {
-              null => null,
-              Pages.page1 => null,
-              Pages.page2 => Pages.page1,
-              Pages.page3 => Pages.page2,
-            };
-            return true;
-          }),
+  Widget build(BuildContext context) {
+    return MaterialApp.router(
+      routerConfig: _router,
     );
   }
 }
 
-class Page1 extends StatelessWidget {
-  const Page1({Key? key, required this.onPressed}) : super(key: key);
-
-  final void Function() onPressed;
+/// The home screen
+class HomeScreen extends StatelessWidget {
+  /// Constructs a [HomeScreen]
+  const HomeScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(),
+      appBar: AppBar(title: const Text('Home Screen')),
       body: Center(
-          child: Column(
-        children: [
-          const Text('Page 1'),
-          ElevatedButton(
-            onPressed: onPressed,
-            child: const Text('Page 2へ'),
-          ),
-        ],
-      )),
+        child: ElevatedButton(
+          onPressed: () => context.go('/details'),
+          child: const Text('Go to the Details screen'),
+        ),
+      ),
     );
   }
 }
 
-class Page2 extends StatelessWidget {
-  const Page2({Key? key, required this.onPressed}) : super(key: key);
-
-  final void Function() onPressed;
+/// The details screen
+class DetailsScreen extends StatelessWidget {
+  /// Constructs a [DetailsScreen]
+  const DetailsScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(),
+      appBar: AppBar(title: const Text('Details Screen')),
       body: Center(
-          child: Column(
-        children: [
-          const Text('Page 2'),
-          ElevatedButton(
-            onPressed: onPressed,
-            child: const Text('Page 3へ'),
-          ),
-        ],
-      )),
+        child: ElevatedButton(
+          onPressed: () => context.go('/'),
+          child: const Text('Go back to the Home screen'),
+        ),
+      ),
     );
-  }
-}
-
-class Page3 extends StatelessWidget {
-  const Page3({Key? key}) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(),
-      body: const Center(child: Text('Page 3')),
-    );
-  }
-}
-
-enum Pages {
-  page1,
-  page2,
-  page3,
-}
-
-@riverpod
-class PageName extends _$PageName {
-  @override
-  Pages? build() {
-    return null;
   }
 }
